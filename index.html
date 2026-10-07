@@ -1,0 +1,617 @@
+<!DOCTYPE1 html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top-Down Retro Racer 經典鳥瞰賽車</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #1a1a24;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .game-container {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #222;
+        }
+        canvas {
+            display: block;
+            background: #333;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 12px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .hud-item {
+            text-align: center;
+        }
+        .hud-label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .hud-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #4facfe;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 25, 0.88);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            transition: opacity 0.3s ease;
+        }
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        h1 {
+            font-size: 38px;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+        }
+        p {
+            color: #ccc;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        .controls-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            width: 80%;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .key {
+            background: #333;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            color: #fff;
+            font-weight: bold;
+        }
+        button {
+            background: linear-gradient(45deg, #00f2fe, #4facfe);
+            border: none;
+            color: #000;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 12px 36px;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        .nitro-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .nitro-bar {
+            height: 100%;
+            width: 100%;
+            background: #ff4757;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <canvas id="gameCanvas" width="480" height="640"></canvas>
+
+    <div class="ui-layer">
+        <div class="hud">
+            <div class="hud-item">
+                <div class="hud-label">Score</div>
+                <div class="hud-value" id="scoreVal">0</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">Speed</div>
+                <div class="hud-value" id="speedVal">0 km/h</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">High Score</div>
+                <div class="hud-value" id="highScoreVal">0</div>
+            </div>
+        </div>
+
+        <div style="width: 150px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            <div class="hud-label" style="text-align:left;">Nitro (Ctrl)</div>
+            <div class="nitro-bar-container">
+                <div class="nitro-bar" id="nitroBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主選單 / Game Over Overlay -->
+    <div class="overlay" id="menuOverlay">
+        <h1 id="menuTitle">TOP-DOWN RACER</h1>
+        <p id="menuDesc">在高速公路上馳騁，避開慢速車輛與路面油污！</p>
+
+        <div class="controls-card">
+            <div class="controls-grid">
+                <div><span class="key">W A S D</span> / <span class="key">↑ ↓ ← →</span> 移動與轉向</div>
+                <div><span class="key">Ctrl</span> 氮氣加速 (Nitro)</div>
+                <div><span class="key">Shift</span> 急煞減速 (Brake)</div>
+                <div><span class="key">注意</span> 避開路面黑點 (油污區)</div>
+            </div>
+        </div>
+
+        <button id="startBtn">開始遊戲</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// UI DOM 元素
+const scoreVal = document.getElementById('scoreVal');
+const speedVal = document.getElementById('speedVal');
+const highScoreVal = document.getElementById('highScoreVal');
+const nitroBar = document.getElementById('nitroBar');
+const menuOverlay = document.getElementById('menuOverlay');
+const menuTitle = document.getElementById('menuTitle');
+const menuDesc = document.getElementById('menuDesc');
+const startBtn = document.getElementById('startBtn');
+
+// 遊戲狀態 Variables
+let gameState = 'MENU'; // 'MENU', 'PLAYING', 'GAMEOVER'
+let score = 0;
+let highScore = localStorage.getItem('racer_high_score') || 0;
+highScoreVal.innerText = highScore;
+
+let roadOffset = 0;
+let baseSpeed = 5;
+let currentSpeed = 0;
+let distance = 0;
+
+// 按鍵追蹤
+const keys = {
+    up: false, down: false, left: false, right: false,
+    ctrl: false, shift: false
+};
+
+// 玩家車輛狀態
+const player = {
+    x: canvas.width / 2 - 15,
+    y: canvas.height - 120,
+    width: 30,
+    height: 55,
+    vx: 0,
+    vy: 0,
+    angle: 0,
+    nitro: 100,
+    isSkidding: false,
+    skidTimer: 0
+};
+
+// 遊戲物件 Array
+let npcCars = [];
+let obstacles = [];
+
+// 音效模擬器 (Web Audio API)
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function playSound(type) {
+    if (!audioCtx) return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'crash') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'nitro') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+    } catch(e){}
+}
+
+// 鍵盤事件監聽
+window.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'KeyW'].includes(e.code)) keys.up = true;
+    if (['ArrowDown', 'KeyS'].includes(e.code)) keys.down = true;
+    if (['ArrowLeft', 'KeyA'].includes(e.code)) keys.left = true;
+    if (['ArrowRight', 'KeyD'].includes(e.code)) keys.right = true;
+    if (e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight') keys.ctrl = true;
+    if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = true;
+});
+
+window.addEventListener('keyup', (e) => {
+    if (['ArrowUp', 'KeyW'].includes(e.code)) keys.up = false;
+    if (['ArrowDown', 'KeyS'].includes(e.code)) keys.down = false;
+    if (['ArrowLeft', 'KeyA'].includes(e.code)) keys.left = false;
+    if (['ArrowRight', 'KeyD'].includes(e.code)) keys.right = false;
+    if (e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight') keys.ctrl = false;
+    if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = false;
+});
+
+// 開始/重開按鈕
+startBtn.addEventListener('click', () => {
+    if (!audioCtx) audioCtx = new AudioContext();
+    resetGame();
+    gameState = 'PLAYING';
+    menuOverlay.classList.add('hidden');
+});
+
+function resetGame() {
+    score = 0;
+    distance = 0;
+    currentSpeed = baseSpeed;
+    player.x = canvas.width / 2 - player.width / 2;
+    player.y = canvas.height - 120;
+    player.nitro = 100;
+    player.isSkidding = false;
+    player.skidTimer = 0;
+    npcCars = [];
+    obstacles = [];
+    scoreVal.innerText = '0';
+}
+
+// 產生 NPC 車輛與障礙物
+function spawnEntities() {
+    // 產生 NPC
+    if (Math.random() < 0.02) {
+        const lanes = [70, 160, 250, 340];
+        const lane = lanes[Math.floor(Math.random() * lanes.length)];
+        
+        // 檢查車道重疊
+        const overlap = npcCars.some(car => Math.abs(car.x - lane) < 30 && car.y < 100);
+        if (!overlap) {
+            npcCars.push({
+                x: lane,
+                y: -80,
+                width: 30,
+                height: 55,
+                speed: 2 + Math.random() * 3, // 比背景速度慢
+                color: ['#e74c3c', '#f1c40f', '#2ecc71', '#9b59b6', '#3498db'][Math.floor(Math.random() * 5)]
+            });
+        }
+    }
+
+    // 產生油污/障礙物
+    if (Math.random() < 0.008) {
+        obstacles.push({
+            x: 60 + Math.random() * 320,
+            y: -40,
+            radius: 16,
+            type: 'OIL'
+        });
+    }
+}
+
+// 碰撞檢測 AABB
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+}
+
+// 圓形與矩形碰撞
+function checkCircleRectCollision(circle, rect) {
+    let distX = Math.abs(circle.x - rect.x - rect.width / 2);
+    let distY = Math.abs(circle.y - rect.y - rect.height / 2);
+
+    if (distX > (rect.width / 2 + circle.radius)) return false;
+    if (distY > (rect.height / 2 + circle.radius)) return false;
+
+    if (distX <= (rect.width / 2)) return true; 
+    if (distY <= (rect.height / 2)) return true;
+
+    let dx = distX - rect.width / 2;
+    let dy = distY - rect.height / 2;
+    return (dx * dx + dy * dy <= (circle.radius * circle.radius));
+}
+
+// 遊戲邏輯更新
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    // 計算當前速度與加速機制
+    let targetSpeed = baseSpeed;
+    
+    if (keys.ctrl && player.nitro > 0) {
+        targetSpeed += 6; // 氮氣急加速
+        player.nitro -= 0.6;
+        playSound('nitro');
+    } else if (player.nitro < 100) {
+        player.nitro += 0.1; // 氮氣慢慢恢復
+    }
+
+    if (keys.shift) {
+        targetSpeed -= 3; // 煞車
+    }
+
+    currentSpeed += (targetSpeed - currentSpeed) * 0.1;
+    speedVal.innerText = Math.round(currentSpeed * 22) + ' km/h';
+    nitroBar.style.width = player.nitro + '%';
+
+    // 玩家橫向與縱向控制
+    let moveSpeed = 4.5;
+    if (player.isSkidding) {
+        // 油污失控狀態
+        player.x += (Math.sin(player.skidTimer * 0.5) * 5);
+        player.skidTimer--;
+        if (player.skidTimer <= 0) player.isSkidding = false;
+    } else {
+        if (keys.left) player.x -= moveSpeed;
+        if (keys.right) player.x += moveSpeed;
+        if (keys.up) player.y -= moveSpeed * 0.5;
+        if (keys.down) player.y += moveSpeed * 0.5;
+    }
+
+    // 邊界限制 (公路邊界 50 ~ 430)
+    const minX = 50;
+    const maxX = canvas.width - 50 - player.width;
+    player.x = Math.max(minX, Math.min(maxX, player.x));
+    player.y = Math.max(100, Math.min(canvas.height - 70, player.y));
+
+    // 累積里程與分數
+    distance += currentSpeed;
+    score = Math.floor(distance / 10);
+    scoreVal.innerText = score;
+
+    // 道路捲動
+    roadOffset = (roadOffset + currentSpeed) % 40;
+
+    // 更新 NPC 位置
+    for (let i = npcCars.length - 1; i >= 0; i--) {
+        let car = npcCars[i];
+        car.y += (currentSpeed - car.speed);
+
+        // 碰撞檢測 (玩家與 NPC)
+        if (checkCollision(player, car)) {
+            gameOver();
+            return;
+        }
+
+        // 超出畫面移除
+        if (car.y > canvas.height + 100 || car.y < -150) {
+            npcCars.splice(i, 1);
+        }
+    }
+
+    // 更新障礙物
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        let obs = obstacles[i];
+        obs.y += currentSpeed;
+
+        if (checkCircleRectCollision(obs, player)) {
+            player.isSkidding = true;
+            player.skidTimer = 30; // 失控 30 幀
+            obstacles.splice(i, 1);
+            continue;
+        }
+
+        if (obs.y > canvas.height + 50) {
+            obstacles.splice(i, 1);
+        }
+    }
+
+    spawnEntities();
+}
+
+function gameOver() {
+    gameState = 'GAMEOVER';
+    playSound('crash');
+
+    // 紀錄最高分
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('racer_high_score', highScore);
+        highScoreVal.innerText = highScore;
+    }
+
+    menuTitle.innerText = "GAME OVER";
+    menuDesc.innerText = `最終得分：${score} | 最高紀錄：${highScore}`;
+    startBtn.innerText = "再試一次";
+    menuOverlay.classList.remove('hidden');
+}
+
+// 繪製畫面
+function render() {
+    // 1. 草地背景
+    ctx.fillStyle = '#2d8a4e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. 賽道公路
+    const roadX = 50;
+    const roadWidth = canvas.width - 100;
+    ctx.fillStyle = '#444455';
+    ctx.fillRect(roadX, 0, roadWidth, canvas.height);
+
+    // 公路邊緣白線
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(roadX - 5, 0, 5, canvas.height);
+    ctx.fillRect(roadX + roadWidth, 0, 5, canvas.height);
+
+    // 車道分隔虛線 (4車道 -> 3條虛線)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([20, 20]);
+    ctx.lineDashOffset = -roadOffset;
+
+    for (let i = 1; i <= 3; i++) {
+        let x = roadX + (roadWidth / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]); // 重設線段模式
+
+    // 3. 繪製障礙物 (油污)
+    obstacles.forEach(obs => {
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+        ctx.fill();
+        // 油污反光細節
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(obs.x - 3, obs.y - 3, obs.radius / 2, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 4. 繪製 NPC 車輛
+    npcCars.forEach(car => {
+        drawCar(car.x, car.y, car.width, car.height, car.color, false);
+    });
+
+    // 5. 繪製玩家賽車
+    drawCar(player.x, player.y, player.width, player.height, '#00f2fe', true);
+
+    // 噴氣火焰特效 (Nitro active)
+    if (keys.ctrl && player.nitro > 0 && gameState === 'PLAYING') {
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath();
+        ctx.moveTo(player.x + 8, player.y + player.height);
+        ctx.lineTo(player.x + player.width / 2, player.y + player.height + 15 + Math.random() * 8);
+        ctx.lineTo(player.x + player.width - 8, player.y + player.height);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+// 繪製車輛通用繪圖函式
+function drawCar(x, y, w, h, color, isPlayer = false) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h / 2);
+
+    // 車體主體
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 6);
+    ctx.fill();
+
+    // 車窗玻璃
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-w / 2 + 4, -h / 2 + 12, w - 8, 12); // 前擋風玻璃
+    ctx.fillRect(-w / 2 + 4, h / 2 - 16, w - 8, 8);   // 後擋風玻璃
+
+    // 車燈
+    if (isPlayer) {
+        // 玩家前車燈 (黃光)
+        ctx.fillStyle = '#fffbc8';
+        ctx.fillRect(-w / 2 + 2, -h / 2, 6, 3);
+        ctx.fillRect(w / 2 - 8, -h / 2, 6, 3);
+        
+        // 煞車尾燈
+        ctx.fillStyle = keys.shift ? '#ff0000' : '#880000';
+        ctx.fillRect(-w / 2 + 2, h / 2 - 3, 6, 3);
+        ctx.fillRect(w / 2 - 8, h / 2 - 3, 6, 3);
+    } else {
+        // NPC 前燈與尾燈
+        ctx.fillStyle = '#fffbc8';
+        ctx.fillRect(-w / 2 + 2, -h / 2, 5, 2);
+        ctx.fillRect(w / 2 - 7, -h / 2, 5, 2);
+
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(-w / 2 + 2, h / 2 - 2, 5, 2);
+        ctx.fillRect(w / 2 - 7, h / 2 - 2, 5, 2);
+    }
+
+    // 輪胎
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-w / 2 - 2, -h / 2 + 6, 3, 10);
+    ctx.fillRect(w / 2 - 1, -h / 2 + 6, 3, 10);
+    ctx.fillRect(-w / 2 - 2, h / 2 - 16, 3, 10);
+    ctx.fillRect(w / 2 - 1, h / 2 - 16, 3, 10);
+
+    ctx.restore();
+}
+
+// 主遊戲 Loop (60FPS)
+function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+}
+
+// 啟動主迴圈
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
